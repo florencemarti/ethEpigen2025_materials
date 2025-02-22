@@ -1,0 +1,37 @@
+---
+title: "Assignment Week 1"
+author: "Florence Marti"
+date: "2025-02-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+current_wd <- setwd("/Volumes/green_groups_exh_public/!People/Florence (EXH)/05_Courses/EpiGenetics/Week 1")
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+```
+
+## R Markdown
+```{r}
+#install.packages(c("gsl", "ggplot2", "remotes", "rmarkdown", "UpSetR"), INSTALL_opts = "--no-lock")
+
+# If you haven't install Bioconductor yet:
+#if (!requireNamespace("BiocManager", quietly=TRUE))
+    #install.packages("BiocManager")
+
+#BiocManager::install(c("GenomicRanges", "rtracklayer", "EnrichedHeatmap", "AnnotationHub", 
+                       #"ensembldb", "edgeR", "esATAC", "sechm", "motifmatchr","rGREAT",
+                       #"bsseq","DMRcate","data.table","InteractionSet","limma",
+                       #"universalmotif", "MotifDb", "TFBSTools", "Biostrings", "PWMEnrich",
+                       #"Rsubread","Rfastp"))
+#BiocManager::install(c("Bioconductor/BiocFileCache", "chromVAR"))
+#BiocManager::install("ETHZ-INS/epiwraps")
+
+```
+```{r}
+library(epiwraps)
+```
+```{r}
+sessionInfo()
+```
+
