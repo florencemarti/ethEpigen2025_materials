@@ -1,0 +1,111 @@
+---
+title: "assignment2"
+author: "Florence Marti"
+date: "2025-03-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Volumes/green_groups_exh_public/!People/Florence (EXH)/05_Courses/EpiGenetics/week2")
+```
+
+# 1. Find and download annotations data
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub) # to fetch genomes, annotations, etc.
+  library(ensembldb)     # to manipulate ensembl gene annotations
+  library(GenomicRanges) # data structure for genomic ranges 
+  library(epiwraps)      # visualization
+  library(rtracklayer)
+})
+```
+
+## 1.a. MM EnsDB object, version 102, genome build GRCm38
+```{r}
+ah <- AnnotationHub()
+q_results_mouse <- query(ah, c("Mus musculus", "EnsDb", "102", "GRCm38"))
+
+q_results_mouse
+
+```
+
+```{r}
+ensdb_mm <- ah[["AH89211"]]
+ensdb_mm
+```
+##1.b. Find the mouse genome sequence (dna_sm = soft-masked genomic DNA sequence), assumed I should use the same version as above
+
+```{r}
+q_results_mm_2 <- query(ah, c("Mus musculus", "GRCm38", "102" ,"2bit", "dna_sm")) #2 bit is a slightly different format, similar to FASTA
+q_results_mm_2
+```
+
+```{r}
+ensdb_mm_2 <- ah[["AH88477"]]
+ensdb_mm_2
+```
+
+
+## 1.c. Drosophila
+```{r}
+q_results_drosophila_2bit <- query(ah, c("Drosophila melanogaster", "BDGP6", "2bit", "dna_sm"))
+q_results_drosophila_2bit
+```
+
+```{r}
+ensdb <- ah[["AH106160"]] #most recent one, checked with q_results_drosophila_2bit$rdatadateadded
+```
+# 2. Using the mouse ENSDB, find the following:
+
+## 2.a. How many different ensembl gene IDs and gene symbols are there for protein-coding genes?
+
+```{r}
+genes <- genes(ensdb_mm)
+
+pcg <- genes[which(genes$gene_biotype=="protein_coding")]
+
+
+unique_ID <- unique(pcg$gene_id)
+a <- length(unique_ID)
+
+print(paste("There are", a, "different gene IDs for protein coding genes"))
+ 
+unique_symbol<- unique(pcg$symbol)
+b <- length(unique_symbol)
+
+print(paste("There are", b, "different gene symbols for protein coding genes"))
+```
+
+## 2.b. Plot the distribution of the (spliced) length of protein-coding transcripts (tip: this will require you to extract exons of protein-coding transcripts from the database, and split them by transcript, before summing the width of the exons of each transcript)
+```{r}
+# Extract exons of protein coding transcripts from database
+transcripts <- transcripts(ensdb_mm)
+Transcripts <- transcripts[which(transcripts$gene_biotype=="protein_coding")]
+
+ex <- exonsBy(ensdb_mm, by="tx") # exons but grouped by transcript
+ex
+
+numExonsPerTx <- lengths(ex)
+head(numExonsPerTx)
+
+
+# we limit ourselves to protein-coding transcripts:
+exsPerTx <- exonsBy(ensdb_mm, by="tx", filter=TxBiotypeFilter("protein_coding"))
+exsPerTx
+
+hist(lengths(exsPerTx), main = "Histogram of Exons of Protein Coding Transcripts", ) 
+
+# Summing the width of the exons of each transcript
+tx_lengths <- sum(width(exsPerTx))
+
+
+tx_length_df <- data.frame(transcript_id = names(tx_lengths), spliced_length = tx_lengths)
+tx_length_df
+
+hist(tx_length_df$spliced_length, main="Distribution of Spliced Transcript Lengths",
+     xlab="Spliced Length (bp)")
+```
+
+
