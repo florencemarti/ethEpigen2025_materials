@@ -1,0 +1,161 @@
+---
+title: "assignment3"
+author: "Florence Marti"
+date: "2025-03-07"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Volumes/green_groups_exh_public/!People/Florence (EXH)/05_Courses/EpiGenetics/week3")
+```
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(Rsubread)      # read alignment
+  library(rtracklayer)   # read/write genomic file formats
+  library(Biostrings)    # handling sequences
+  library(Rfastp)        # read QC/trimming
+  library(epiwraps)
+  library(GenomicRanges)  
+  library(GenomicFeatures)
+  library(ensembldb)
+  library(rtracklayer)
+  library(MACSr)
+})
+ah <- AnnotationHub()
+```
+
+
+Process it from the raw data, obtaining:
+bam file (1c)
+peaks 
+Report:
+how many reads (and what percentage) were mapped
+how many peaks were found
+Plot the signal around one of the peaks that is located inside a gene.
+# 1. Preparation
+## 1.a) Downloading the dataset
+```{r}
+options(timeout=3600)
+dir.create("raw_assignment")
+download.file("https://www.encodeproject.org/files/ENCFF127RRR/@@download/ENCFF127RRR.fastq.gz", "raw_assignment/ENCFF.fasta.gz", mode="wb")
+
+
+```
+
+## 1.b) Processing: 
+
+Aligning the reads to the Drosophila Melanogaster DM6 by building a genome index for mapping first
+```{r}
+# get the genome sequence from AnnotationHub
+ah_query <- query(ah, c("Drosophila melanogaster", "BDGP6", "2bit"))
+ah_query
+genome <- ah[["AH49674"]] #AH49674  | Drosophila_melanogaster.BDGP6.dna_sm.toplevel.2bit
+
+# get the genes for the last step in the peak visualisation
+ah_genes <- query(ah, c( "Drosophila melanogaster", "BDGP6", "EnsDb")) # looking for the database
+ah_genes
+genes_ensdb <- ah[["AH116255"]] #AH116255 | Ensembl 111 EnsDb for Drosophila melanogaster
+genes <- genes(genes_ensdb, return.type = "GRanges")
+
+# create a new directory that will contain the genome index
+dir.create("BDGP6_genome_assignment")
+# write the genome sequence in fasta format
+export(import.2bit(genome), "BDGP6_genome_assignment/genome.fasta.gz", compress=TRUE)
+
+list.files("BDGP6_genome_assignment", full.names=TRUE)
+
+# build a Rsubread index
+Rsubread::buildindex("BDGP6_genome_assignment/rsubread", reference="BDGP6_genome_assignment/genome.fasta.gz")
+```
+
+## 1.c) Trimming the dataset
+```{r}
+fastq_file <- list.files("raw_assignment/", pattern="\\.gz$", full.names=TRUE)[1]
+
+dir.create("rfastp.trimmed_assignment")
+
+qc <- lapply(fastq_file, function(x) {
+  output_file <- file.path("rfastp.trimmed_assignment/", gsub("\\.fastq\\.gz$", ".trimmed.fastq.gz", basename(x))
+)
+  Rfastp::rfastp(x, thread=4, overrepresentationAnalysis=TRUE, outputFastq=output_file)
+})
+
+```
+
+## 1.d) Aligning and getting the bam file
+
+```{r}
+R.utils::gunzip("BDGP6_genome_assignment/genome.fasta.gz", 
+                remove=FALSE, overwrite=TRUE)
+
+dir.create("aligned_assignment")
+
+align.stats <- Rsubread::align(index="BDGP6_genome_assignment/rsubread", 
+                               type="dna", 
+                               readfile1="rfastp.trimmed_assignment/ENCFF.fasta.gz_R1.fastq.gz", 
+                               output_file="aligned_assignment/ENCFF.bam", 
+                               nthreads=6, 
+                               sortReadsByCoordinates=TRUE)
+
+align.stats
+```
+
+# 2. Peaks
+```{r}
+dir.create("peaks_assignment")
+callpeak(tfile="aligned_assignment/ENCFF.bam", 
+         gsize="dm", 
+         outdir="peaks_assignment", 
+         name="ENCFF")
+```
+
+## 2.a. Finding the amount of peaks
+
+```{r}
+peaks <- rtracklayer::import("peaks_assignment/ENCFF_peaks.narrowPeak")
+number_peaks <- length(peaks)
+
+head(peaks)
+```
+
+
+
+# 3. Report
+## 3.a) How many reads (and what percentage) were mapped
+
+```{r}
+total_reads <- align.stats[1,1]
+mapped_reads <- align.stats[2,1]
+percentage <- (100/total_reads)*mapped_reads
+
+print(paste("There was a total of", total_reads, "reads, out of which", 
+            mapped_reads, "were mapped, which is a percentage of", 
+            round(percentage, 2), "%."))
+```
+
+## 3.b) how many peaks were found
+
+```{r}
+print(paste("There was a total of", number_peaks, "peaks found in the .bam file"))
+```
+
+## 3.c) Plot the signal around one of the peaks that is located inside a gene.
+### 3.c.1) Find which peaks are inside a gene and plot
+```{r}
+
+overlapping_peaks <- findOverlaps(peaks, genes)
+
+# Get peaks that are inside genes
+peaks_inside_genes <- peaks[queryHits(overlapping_peaks)]
+peaks_inside_genes
+peak_gene <- peaks_inside_genes[3] # I chose the sixth hit of the overlaps as the peak I want to visualise because it had the highest pValue out of the first 5 that were displayed
+
+myRegion <- paste0(seqnames(peak_gene), ":", start(peak_gene) - 5000, "-", end(peak_gene) + 5000)
+print(myRegion)
+
+plotSignalTracks("aligned_assignment/ENCFF.bam", region = myRegion, extend = 5000)
+
+```
+
