@@ -1,0 +1,125 @@
+---
+title: "assignment5"
+author: "Florence Marti"
+date: "2025-03-24"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Volumes/green_groups_exh_public/!People/Florence/05_Courses/EpiGenetics/week5")
+```
+
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(ensembldb)
+  library(GenomicRanges)
+  library(epiwraps)
+  library(rtracklayer)
+  library(ggplot2)
+  library(magick)
+  library(R.utils) #for function gunzip
+  library(MASS)
+})
+```
+
+Using peaks from ENCODE, identify bivalent domains (H3K27me3 + H3K4me3) from (mouse or human) embryonic stem cells (ESC)
+Question: what happens to those regions upon differentiation?
+Choose one differentiated cell type (e.g. erythroblasts, fibroblast, B cells, etc.)
+Download the H3K27me3 and H3K4me3 peaks from this cell type
+
+How many of the mESC bivalent domains are, in this differentiated cell type, overlapping either mark or their combination (in this differentiated cell type)?
+# 1. Undifferentiated peaks
+
+```{r}
+dir.create("peaks_assignment/mESC")
+
+download.file("https://www.encodeproject.org/files/ENCFF558YNC/@@download/ENCFF558YNC.bed.gz", destfile="peaks_assignment/mESC/mESC_H3K27me3.bed.gz")
+gunzip("peaks_assignment/mESC/mESC_H3K27me3.bed.gz")
+##import peaks
+mESC_H3K27me3 <- rtracklayer::import("peaks_assignment/mESC/mESC_H3K27me3.bed", format ="narrowPeak")
+head(mESC_H3K27me3)
+```
+
+```{r}
+download.file("https://www.encodeproject.org/files/ENCFF974BMC/@@download/ENCFF974BMC.bed.gz", destfile="peaks_assignment/mESC/mESC_H3K4me3.bed.gz")
+gunzip("peaks_assignment/mESC/mESC_H3K4me3.bed.gz")
+##import peaks
+mESC_H3K4me3 <- rtracklayer::import("peaks_assignment/mESC/mESC_H3K4me3.bed", format ="narrowPeak")
+head(mESC_H3K4me3)
+```
+
+```{r}
+# to read several peak files:
+# first list the files:
+peakfiles_assignment_mESC <- list.files("peaks_assignment/mESC", full.names = TRUE)
+# then give them meaningful names
+names(peakfiles_assignment_mESC) <- gsub("\\.bed","",basename(peakfiles_assignment_mESC))
+
+# then loop through them and read them:
+peaks_assignment_mESC <- lapply(peakfiles_assignment_mESC, FUN=rtracklayer::import, format="narrowPeak")
+```
+
+
+```{r}
+bivDomains_mESC <- overlapsAny(mESC_H3K4me3, mESC_H3K27me3) # Question: Why does the order of files in OverlapsAny matter?
+sum(bivDomains_mESC)
+
+
+bivDomain_mESC_peaks <- findOverlaps(mESC_H3K4me3, mESC_H3K27me3, type = "any")
+head(bivDomain_mESC_peaks)
+
+#Extracting the subset of bivalent domains (same amount as in the OverlapsAny)
+subset <- mESC_H3K4me3[bivDomains_mESC[TRUE]]
+head(subset)
+length(subset)
+```
+
+
+## Cells used: Mouse Erythroblasts (E14.5)
+### Histone 3 Lysine 4 Tri-Methylation
+```{r}
+dir.create("peaks_assignment/mEry")
+download.file("https://www.encodeproject.org/files/ENCFF339CXH/@@download/ENCFF339CXH.bed.gz", destfile="peaks_assignment/mEry/H3K4me3.bed.gz")
+gunzip("peaks_assignment/mEry/H3K4me3.bed.gz")
+```
+
+### Histone 3 Lysine 27 Tri-Methylation 
+I chose this dataset because the one above also had replicated peaks and this one does as well - I don't know if it makes a difference whether the peaks are replicated or pseudoreplicated, but if it does, could we discuss this in class next week?
+
+```{r}
+download.file("https://www.encodeproject.org/files/ENCFF684IRJ/@@download/ENCFF684IRJ.bed.gz", destfile="peaks_assignment/mEry/H3K27me3.bed.gz")
+gunzip("peaks_assignment/mEry/H3K27me3.bed.gz")
+```
+
+
+```{r}
+# to read several peak files:
+# first list the files:
+peakfiles_assignment <- list.files("peaks_assignment/mEry", full.names = TRUE)
+# then give them meaningful names
+names(peakfiles_assignment) <- gsub("\\.bed","",basename(peakfiles_assignment))
+
+# then loop through them and read them:
+peaks_assignment <- lapply(peakfiles_assignment, FUN=rtracklayer::import, format="narrowPeak")
+
+
+bivDomains_mEry <- overlapsAny(peaks_assignment$H3K4me3, peaks_assignment$H3K27me3)
+sum(bivDomains_mEry)
+```
+## Upset Plot of the mESC
+```{r}
+regionUpset(peaks_assignment_mESC, nsets=length(peaks_assignment_mESC), main.bar.color = "darkgreen", shade.color = "pink")
+```
+## Upset Plot for Erythrocytes and Bivalent Domains
+
+```{r}
+peaks_assignment$mESC_bivalent <- subset
+regionUpset(peaks_assignment, nsets=length(peaks_assignment), main.bar.color = "darkgreen", shade.color = "pink")
+```
+
+
+Out of the histone modifications that used to be bivalent, fewer are still bivalent (decrease from 3098 to 1133). This can be explained by the differentation of the cells to erythrocytes, which have a different phenotype and also different tasks compared to stem cells. Out of the formerly bivalent histone modification sites, 1015 have turned to H3K27me3 and 76 have become H3K4me3. 30 of the formerly bivalent domains have no match for either K27me3 or K4me3. However, 4404 formerly non bivalent domains are now bivalent. 
