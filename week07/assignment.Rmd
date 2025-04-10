@@ -1,0 +1,120 @@
+---
+title: "assignment7"
+author: "Florence Marti"
+date: "2025-04-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Volumes/green_groups_exh_public/!People/Florence/05_Courses/EpiGenetics/week7")
+```
+
+# Assignment 7
+In the same dataset of ATAC on chr19, plot 
+
+```{r}
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+BiocManager::install("GenomeInfoDb", force = TRUE)
+  update.packages("GenomeInfoDb")
+  packageVersion("GenomeInfoDb")
+  
+install.packages("RCurl", force =TRUE)
+
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(AnnotationHub)
+  library(MotifDb)
+  library(memes)
+  library(universalmotif)
+  library(ensembldb)
+  library(ggplot2)
+})
+
+ah <- AnnotationHub()
+ensdb <- ah[["AH89211"]] # mouse ensembldb object
+```
+
+```{r, eval=FALSE}
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam", "atac.chr19.bam")
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam.bai", "atac.chr19.bam.bai")
+```
+
+
+```{r}
+bam <- "atac.chr19.bam"
+```
+
+
+## 1) the insertion (i.e. ‘cuts’) profile of nucleosome-free fragments and 
+
+```{r}
+
+# create a track using only nucleosome-free fragments, the number of cuts/insertion sites at each position
+bam2bw(bam, output_bw = "NF_cuts.bw", paired=TRUE, binWidth=1L, type="ends", minFragLength=30, 
+       maxFragLength=120, trim=4L, extend=3L, forceSeqlevelsStyle = "Ensembl")
+
+#create a track using only mono-nucleosome fragments, computing the number of cuts/insertions at each position
+bam2bw(bam, output_bw = "mono_cuts.bw", paired=TRUE, binWidth = 1L, type="ends", minFragLength = 140, maxFragLength = 220, shift=c(4L, -5L), forceSeqlevelsStyle = "Ensembl")
+
+```
+
+```{r}
+# get KLF4 motif
+motif_K <- MotifDb::query(MotifDb, c("KLF4","Mus"))[[1]]
+motif_K2 <- convert_motifs(motif_K, class="TFBSTools-PFMatrix")
+
+# get KLF4 motif
+motif_M <- MotifDb::query(MotifDb, c("MAZ","Mus"))[[1]]
+motif_M2 <- convert_motifs(motif_M, class="TFBSTools-PFMatrix")
+genome <- ah[["AH68356"]]
+# get the sequence for chr19:
+chr19 <- import(genome)["19"]
+
+```
+```{r}
+# find motif matches across chr19
+moi_k <- motifmatchr::matchMotifs(motif_K2, chr19, out="positions", p.cutoff=1e-5)[[1]]
+# convert to GRanges
+moi_k <- as(setNames(moi_k,names(chr19)), "GRanges")
+head(moi_k)
+```
+
+```{r, fig.width=8, fig.height=4}
+# we prepare the list of tracks
+tracks_K <- c("KLF4 NF cuts"="NF_cuts.bw", "KLF4 Mono cuts"="mono_cuts.bw")
+names(tracks_K) <- gsub("\\.bw","",basename(tracks_K))
+
+# extract signals around the motif occurences
+# we zoom in to 300bp around the motif centers, in windows of 5bp
+sm_k <- signal2Matrix(tracks_K, moi_k, w=5, extend=500)
+
+# plot the signals:
+ht_opt$message= FALSE
+#plotEnrichedHeatmaps(sm_k, trim=0.95, multiScale = TRUE, axis_name = "0")
+```
+
+```{r}
+# find motif matches across chr19
+moi_m <- motifmatchr::matchMotifs(motif_M2, chr19, out="positions", p.cutoff=1e-5)[[1]]
+# convert to GRanges
+moi_m <- as(setNames(moi_m,names(chr19)), "GRanges")
+head(moi_m)
+```
+
+```{r, fig.width=8, fig.height=4}
+# we prepare the list of tracks
+tracks_M <- c("MAZ NF cuts"="NF_cuts.bw", "MAZ Mono cuts"="mono_cuts.bw")
+names(tracks_M) <- gsub("\\.bw","",basename(tracks_M))
+
+# extract signals around the motif occurences
+# we zoom in to 300bp around the motif centers, in windows of 5bp
+sm_m <- signal2Matrix(tracks_M, moi_m, w=5, extend=500)
+
+# plot the signals:
+ht_opt$message= FALSE
+#plotEnrichedHeatmaps(sm_m, trim=0.95, multiScale = TRUE, axis_name = "0")
+```
+
+As mentioned in my question in the slack channel, I always get error messages for plotEnrichedHeatmaps and cannot knit the document if I don't comment them out.
