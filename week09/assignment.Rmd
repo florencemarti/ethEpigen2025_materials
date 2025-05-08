@@ -1,0 +1,21 @@
+---
+title: "Assignment_Valerie_Florence_EpiGenetics"
+author: "Valerie Heckendorn and Florence Marti"
+date: "2025-05-07"
+output: html_document
+---
+Setup Florence
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#setwd("C:/Users/flmarti/polybox/EpiGenetics_Valerie_Florence")
+```
+
+# Project Outline:
+## What is the topic?
+The topic of our analysis will be single-nucleus transcriptional and chromatin accessibility analyses of maturing mouse Achilles tendon. The goal of the initial paper was to uncover the molecular landscape of tendon stem and progenitor cells, since not a lot is known about these cell types. In the study, they found novel markers, that could help identifying tendon stem/ progenitor cells but since their evidence is incomplete as of now, we thought we could replicate their analysis, comparing 2- and 6-week old mice. The paper is quite recent, as it was published as a reviewed but not revised preprint in Feburary 2025, by Tsutsumi et al in Developmental Biology:  https://elifesciences.org/reviewed-preprints/104768#s3. The topic is of interest to us, since Florence Marti is also looking at how tendons, more specifically tendon vascularisation, change during the development of mice. Valerie Heckendorn is working with placenta specific macrophages and will be analysing single cell datasets in the future, therefore by getting used to working with tendon single cell data and also learning how to perform clusterings, would benefit both of us in the future for our projects.
+## What data will you be using?
+The authors of the paper published their data as ATAC-seq files on DDBJ, we are in the process of downloading the files to a shared folder. They published 6 datasets, it is unclear to us if we will use all of them or just selected datasets.
+## What are the analyses you wish to reproduce, or the questions you wish to answer?
+They did multiple analyses in the paper, we wish to reproduce the snATAC-seq portion of the work presented. We will do this by following their workflow approach but by using the tools that were discussed in the context of this lecture. We will work with the files (https://ddbj.nig.ac.jp/search/entry/bioproject/PRJDB18857) provided by the authors and reproduce the main steps of their single-nucleus ATAC-seq analysis. This includes calling peaks from the fragments, creating a cell-by-peak matrix, performing quality control to remove low-quality cells, and reducing the dimensionality of the data to cluster the cells based on their chromatin accessibility profiles. We will then try to annotate the clusters by looking at accessibility around genes known to be markers for tendon or progenitor cell types. Finally, we’ll compare clusters (and possibly developmental stages) to find differentially accessible regions that might point to regulatory changes during tendon maturation. Since this is a single-cell based analysis we wanted try to replicate , the clustering based ther chromatin accessibility profiles. The gene activity in the 2w and 6w snATAC-seq files is also something we want to compare to each other and potentially look at a timecourse plot of the gene availability. This is something that the authors of the paper did not do and we would be interested to see if there are important changes happening during this time, since the first month postnatally is time of major changes in ECM composition in mouse tendons. 
+
