@@ -1,0 +1,180 @@
+---
+title: "assignment10"
+author: "Florence Marti"
+date: "2025-05-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Volumes/green_groups_exh_public/!People/Florence/05_Courses/EpiGenetics/week10")
+```
+
+```{r}
+BiocManager::install("rGREAT")
+suppressPackageStartupMessages({
+  library(GenomicRanges)
+  library(epiwraps)
+  library(ggplot2)
+  library(rGREAT) # Gene Ontology enrichment among genomic regions
+  library(MotifDb)
+  library(universalmotif)
+  library(ggplot2)
+  library(SummarizedExperiment) # data structure
+  library(sechm) # for plotting heatmaps from a SummrizedExperiment
+  library(BiocParallel) # for multithreading
+  library(chromVAR) # for motif accessibility estimation
+  library(limma) # for statistical analysis
+  library(TFBSTools)
+  library(Biostrings)
+})
+
+# to control multithreading, unix users can use:
+register(MulticoreParam(4))
+# for windows users, rather one of the following:
+# register(SerialParam()) # this will disable multi-threading
+# register(SnowParam(2))
+```
+
+```{r}
+system("which gfortran")
+system("gfortran --version")
+Sys.getenv("PATH")
+
+```
+
+
+#1.  Analysis 
+##1.a  Download the data
+
+```{r, eval = FALSE}
+options(timeout=6000)
+download.file("https://ethz-ins.org/content/w10.assignment.zip", "archive.zip", mode="wb")
+unzip("archive.zip")
+list.files()
+```
+
+```{r}
+peaks <- list.files(pattern="bed$")
+# we first import the peaks
+peaks <- lapply(peaks, rtracklayer::import.bed)
+# we'll focus on the high-quality peaks
+peaks <- lapply(peaks, FUN=function(x) x[x$score>800])
+# we get the union of non-redundant regions
+regions <- reduce(unlist(GRangesList(peaks)))
+tracks <- list.files(pattern = "bw$")
+
+```
+
+```{r}
+creb_bed_files <- grep("creb", peaks, value = TRUE, ignore.case = TRUE)
+creb_bw_files <- grep("creb", tracks, value = TRUE, ignore.case = TRUE)
+
+# Create a subset of peaks only for CREB-related BED files
+creb_peaks <- peaks[peaks %in% creb_bed_files]
+
+# Create a subset of tracks only for CREB-related BigWig files
+creb_tracks <- tracks[tracks %in% creb_bw_files]
+
+```
+
+
+
+## 1.b Plot
+
+```{r}
+
+ese <- signal2Matrix(creb_tracks, regions, extend=2000)
+plotEnrichedHeatmaps(ese)
+ese2 <- ese[1:1000,]
+plotEnrichedHeatmaps(ese2, cluster_rows = TRUE, show_row_dend=TRUE )
+```
+
+
+## 1.c Clustering
+Use clustering and visualization to illustrate the relationship between the binding of the different proteins
+```{r}
+cl2 <- clusterSignalMatrices(ese, k=2:10)
+ggplot(cl2$varExplained, aes(k, varExplained)) + geom_line()
+```
+
+
+```{r}
+set.seed(123)  # to ensure that it gives the same results everytime
+cl <- clusterSignalMatrices(ese, k=7)
+table(cl)
+head(cl)
+length(cl)
+length(regions)
+
+# to make sure the cluster labels stay associated with the corresponding regions/rows
+# even if we manipulate the object, put them inside the rowData of the object:
+rowData(ese)$cluster <- cl
+head(rowData(ese))
+```
+
+```{r}
+mycolors <- c("1"="pink", "2"="lightblue", "3"="darkgreen", "4"="orange", "5"="purple", "6"="blue", "7"="lightgreen")
+plotEnrichedHeatmaps(ese, row_split="cluster", mean_color=mycolors, colors=c("white","darkred"))
+```
+CREB1 and CREB3L1 have similar binding patterns, even though CREB3L1 is closely related to CREB3. 
+
+```{r}
+d <- meltSignals(ese, splitBy=cl)
+ggplot(d, aes(position, mean, colour=sample)) + geom_line(size=1.2) + facet_wrap(~split)
+```
+
+
+
+
+## 1.d Clustering using relative signal instead:
+
+```{r}
+cl <- clusterSignalMatrices(ese, k=7, scaleRows = TRUE)
+d <- meltSignals(ese, splitBy=cl)
+ggplot(d, aes(position, mean, colour=sample)) + geom_line() + facet_wrap(~split)
+plotEnrichedHeatmaps(ese, row_split = cl, scale_rows = "global")
+```
+
+
+# 2. Enrichment Analyis
+Cluster 3
+```{r}
+# we first split the regions by cluster:
+split_regions <- split(rowRanges(ese), rowData(ese)$cluster)
+lengths(split_regions)
+
+res <- great(split_regions[["3"]], gene_sets="GO:BP", tss_source="hg38", 
+             background=regions, cores=2)
+bp <- getEnrichmentTables(res)
+head(bp)
+```
+
+```{r}
+res_cc <- great(split_regions[["3"]], gene_sets="GO:CC", tss_source="hg38", 
+             background=regions, cores=2)
+cc <- getEnrichmentTables(res_cc)
+head(cc)
+```
+
+# 3. Plotting of BP GO Terms for Cluster 3:
+
+```{r, fig.width=9, fig.height=6}
+ggplot(head(bp,10), aes(fold_enrichment, reorder(description, p_adjust), 
+                        size=observed_region_hits, color=-log10(p_adjust))) + 
+  geom_point() + scale_color_viridis_c() 
+
+ggplot(head(cc,10), aes(fold_enrichment, reorder(description, p_adjust), 
+                        size=observed_region_hits, color=-log10(p_adjust))) + 
+  geom_point() + scale_color_viridis_c() 
+```
+
+
+
+# Write a paragraph describing your results:
+The signal profiles in cluster 3 for the three transcription factors show distinct binding dynamics. CREB1 has the strongest enrichment peak, closely followed by CREB3L1. In contrast, CREB3 shows minimal binding activity. This suggests that CREB1 and CREB3L1 may play key roles in regulating the GO terms associated with cluster 3.
+
+Looking at the GO:BP results for cluster 3, several highly enriched terms are related to synaptic vesicle dynamics, including synaptic vesicle recycling, synaptic vesicle endocytosis, and presynaptic endocytosis. More general terms like vesicle localisation also show up, suggesting a role in signalling processes.
+
+Since signalling isn’t something I usually work with, I also checked the GO:CC terms to get a better sense of the cellular context. Among the top enriched terms were extrinsic component of membrane, cell cortex, and cell-substrate junction, along with mitochondrion and endoplasmic reticulum. These components line up well with the biological processes and support the idea that CREB1 and CREB3L1 might be involved in regulating endocytosis and vesicle trafficking in a signalling context.
+
